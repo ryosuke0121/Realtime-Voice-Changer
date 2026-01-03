@@ -6,12 +6,11 @@ Web Audio API (Tone.js) と Hono を活用した、リアルタイム音声加�
 - リアルタイム音声加工（ピッチシフト、リバーブ、歪み、EQ等）
 - 6種類のプリセット（男声→女声、女声→男声、ロボット、洞窟、モンスター等）
 - 録音・ダウンロード機能
-- 設定の自動保存機能
 
 ## 技術スタック
 - フロントエンド: React + TypeScript + Vite
-- サーバーサイド: Hono (Node.js / Cloudflare Pages対応)
-- 音声処理: Tone.js (Web Audio API)
+- サーバーサイド: Hono
+- 音声処理: Tone.js
 - スタイリング: Tailwind CSS
 
 ## セットアップ
