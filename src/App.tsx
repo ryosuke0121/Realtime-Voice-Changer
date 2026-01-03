@@ -3,6 +3,7 @@ import { Header } from './components/Header';
 import { PresetSelector } from './components/PresetSelector';
 import { AudioControls } from './components/AudioControls';
 import { Recorder } from './components/Recorder';
+import { Footer } from './components/Footer';
 import { useAudioProcessor } from './services/useAudioProcessor';
 import { DEFAULT_PRESETS, UI_COLORS } from './config/constants';
 import { AppState, Preset } from './types';
@@ -121,6 +122,8 @@ function App() {
                         disabled={false}
                         onUpdate={updateSetting}
                     />
+
+                <Footer />
                 </div>
             </div>
         </div>
