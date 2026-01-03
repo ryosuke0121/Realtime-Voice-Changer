@@ -14,6 +14,7 @@ export const useAudioProcessor = (settings: AppState) => {
     const noiseGateRef = useRef<Tone.Gate | null>(null);
     const compressorRef = useRef<Tone.Compressor | null>(null);
     const eq3Ref = useRef<Tone.EQ3 | null>(null);
+    const gainRef = useRef<Tone.Gain | null>(null);
     const destinationRef = useRef<MediaStreamAudioDestinationNode | null>(null);
 
     useEffect(() => {
@@ -29,6 +30,7 @@ export const useAudioProcessor = (settings: AppState) => {
                 await reverbRef.current.generate();
 
                 distortionRef.current = new Tone.Distortion({ distortion: 0, wet: 1 });
+                gainRef.current = new Tone.Gain(1.0);
 
                 const ctx = Tone.context.rawContext as AudioContext;
                 destinationRef.current = ctx.createMediaStreamDestination();
@@ -36,7 +38,7 @@ export const useAudioProcessor = (settings: AppState) => {
                 if (
                     micRef.current && noiseGateRef.current && compressorRef.current &&
                     eq3Ref.current && pitchShiftRef.current && reverbRef.current &&
-                    distortionRef.current
+                    distortionRef.current && gainRef.current
                 ) {
                     micRef.current.chain(
                         noiseGateRef.current,
@@ -45,9 +47,10 @@ export const useAudioProcessor = (settings: AppState) => {
                         pitchShiftRef.current,
                         reverbRef.current,
                         distortionRef.current,
+                        gainRef.current,
                         Tone.Destination
                     );
-                    distortionRef.current.connect(destinationRef.current as any);
+                    gainRef.current.connect(destinationRef.current as any);
                 }
                 setIsReady(true);
             } catch (e) {
@@ -65,6 +68,7 @@ export const useAudioProcessor = (settings: AppState) => {
             pitchShiftRef.current?.dispose();
             reverbRef.current?.dispose();
             distortionRef.current?.dispose();
+            gainRef.current?.dispose();
         };
     }, []);
 
@@ -96,6 +100,10 @@ export const useAudioProcessor = (settings: AppState) => {
             eq3Ref.current.high.value = settings.eqHigh;
         }
     }, [settings.eqLow, settings.eqMid, settings.eqHigh]);
+
+    useEffect(() => {
+        if (gainRef.current) gainRef.current.gain.value = settings.gain;
+    }, [settings.gain]);
 
     const start = useCallback(async () => {
         try {

@@ -4,6 +4,7 @@ export type Preset = {
     pitch: number;
     reverb: number;
     distortion: number;
+    gain?: number;
     noiseGate?: number;
     compressor?: number;
     eq?: { low: number; mid: number; high: number };
@@ -16,6 +17,7 @@ export type AppState = {
     pitchShift: number;
     reverbMix: number;
     distortion: number;
+    gain: number;
     noiseGate: number;
     compressor: number;
     eqLow: number;
