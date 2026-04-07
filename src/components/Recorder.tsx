@@ -138,14 +138,14 @@ const convertToMp3Blob = async (sourceBlob: Blob): Promise<Blob> => {
         // lamejs supports up to stereo input.
         const channels = Math.min(decodedAudio.numberOfChannels, 2);
         const mp3Encoder = new Mp3Encoder(channels, decodedAudio.sampleRate, MP3_BITRATE_KBPS);
-        const mp3Data: Int8Array[] = [];
+        const mp3Data: BlobPart[] = [];
 
         if (channels === 1) {
             const mono = convertFloat32ToInt16(decodedAudio.getChannelData(0));
             for (let i = 0; i < mono.length; i += MP3_SAMPLE_BLOCK_SIZE) {
                 const mp3Buffer = mp3Encoder.encodeBuffer(mono.subarray(i, i + MP3_SAMPLE_BLOCK_SIZE));
                 if (mp3Buffer.length > 0) {
-                    mp3Data.push(new Int8Array(mp3Buffer));
+                    mp3Data.push(new Uint8Array(mp3Buffer));
                 }
             }
         } else {
@@ -157,14 +157,14 @@ const convertToMp3Blob = async (sourceBlob: Blob): Promise<Blob> => {
                     right.subarray(i, i + MP3_SAMPLE_BLOCK_SIZE),
                 );
                 if (mp3Buffer.length > 0) {
-                    mp3Data.push(new Int8Array(mp3Buffer));
+                    mp3Data.push(new Uint8Array(mp3Buffer));
                 }
             }
         }
 
         const endBuffer = mp3Encoder.flush();
         if (endBuffer.length > 0) {
-            mp3Data.push(new Int8Array(endBuffer));
+            mp3Data.push(new Uint8Array(endBuffer));
         }
 
         return new Blob(mp3Data, { type: 'audio/mpeg' });
