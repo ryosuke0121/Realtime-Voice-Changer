@@ -35,7 +35,7 @@ serve({
   fetch: app.fetch,
   port
 });
-var server_default = app;
+var index_default = app;
 export {
-  server_default as default
+  index_default as default
 };
