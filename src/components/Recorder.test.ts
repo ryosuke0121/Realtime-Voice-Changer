@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getSupportedRecordingMimeType } from './Recorder';
+import { getSupportedRecordingMimeType } from '../utils/recording';
 
 describe('getSupportedRecordingMimeType', () => {
     it('prefers webm opus when available', () => {

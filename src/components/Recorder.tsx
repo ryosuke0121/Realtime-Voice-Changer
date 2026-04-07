@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { Mic, MicOff, Download } from 'lucide-react';
 import { Mp3Encoder } from 'lamejs';
+import { getSupportedRecordingMimeType } from '../utils/recording';
 
 const MP3_BITRATE_KBPS = 128;
 const MP3_SAMPLE_BLOCK_SIZE = 1152;
@@ -62,7 +63,6 @@ export const Recorder: React.FC<RecorderProps> = ({
                         await downloadRecording();
                     } catch (error) {
                         console.error('Failed to save recording as MP3:', error);
-                        alert('録音データのMP3変換に失敗しました');
                     } finally {
                         cleanup();
                     }
@@ -130,23 +130,12 @@ export const Recorder: React.FC<RecorderProps> = ({
     );
 };
 
-const RECORDING_MIME_TYPE_CANDIDATES = [
-    'audio/webm;codecs=opus',
-    'audio/webm',
-    'audio/mp4',
-    'audio/ogg;codecs=opus',
-    'audio/ogg',
-];
-
-export const getSupportedRecordingMimeType = (isTypeSupported: (mimeType: string) => boolean): string => {
-    return RECORDING_MIME_TYPE_CANDIDATES.find((mimeType) => isTypeSupported(mimeType)) ?? '';
-};
-
 const convertToMp3Blob = async (sourceBlob: Blob): Promise<Blob> => {
     const audioContext = new AudioContext();
     try {
         const arrayBuffer = await sourceBlob.arrayBuffer();
         const decodedAudio = await audioContext.decodeAudioData(arrayBuffer);
+        // lamejs supports up to stereo input.
         const channels = Math.min(decodedAudio.numberOfChannels, 2);
         const mp3Encoder = new Mp3Encoder(channels, decodedAudio.sampleRate, MP3_BITRATE_KBPS);
         const mp3Data: Int8Array[] = [];
