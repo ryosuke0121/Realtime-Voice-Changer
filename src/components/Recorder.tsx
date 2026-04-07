@@ -2,6 +2,9 @@ import React, { useRef, useState } from 'react';
 import { Mic, MicOff, Download } from 'lucide-react';
 import { Mp3Encoder } from 'lamejs';
 
+const MP3_BITRATE_KBPS = 128;
+const MP3_SAMPLE_BLOCK_SIZE = 1152;
+
 
 interface RecorderProps {
     isRecording: boolean;
@@ -54,8 +57,16 @@ export const Recorder: React.FC<RecorderProps> = ({
     const stopRecordingSession = () => {
         if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
             mediaRecorderRef.current.onstop = () => {
-                void downloadRecording();
-                cleanup();
+                void (async () => {
+                    try {
+                        await downloadRecording();
+                    } catch (error) {
+                        console.error('Failed to save recording as MP3:', error);
+                        alert('録音データのMP3変換に失敗しました');
+                    } finally {
+                        cleanup();
+                    }
+                })();
             };
             mediaRecorderRef.current.stop();
         } else {
@@ -137,14 +148,13 @@ const convertToMp3Blob = async (sourceBlob: Blob): Promise<Blob> => {
         const arrayBuffer = await sourceBlob.arrayBuffer();
         const decodedAudio = await audioContext.decodeAudioData(arrayBuffer);
         const channels = Math.min(decodedAudio.numberOfChannels, 2);
-        const mp3Encoder = new Mp3Encoder(channels, decodedAudio.sampleRate, 128);
-        const sampleBlockSize = 1152;
+        const mp3Encoder = new Mp3Encoder(channels, decodedAudio.sampleRate, MP3_BITRATE_KBPS);
         const mp3Data: Int8Array[] = [];
 
         if (channels === 1) {
             const mono = convertFloat32ToInt16(decodedAudio.getChannelData(0));
-            for (let i = 0; i < mono.length; i += sampleBlockSize) {
-                const mp3Buffer = mp3Encoder.encodeBuffer(mono.subarray(i, i + sampleBlockSize));
+            for (let i = 0; i < mono.length; i += MP3_SAMPLE_BLOCK_SIZE) {
+                const mp3Buffer = mp3Encoder.encodeBuffer(mono.subarray(i, i + MP3_SAMPLE_BLOCK_SIZE));
                 if (mp3Buffer.length > 0) {
                     mp3Data.push(new Int8Array(mp3Buffer));
                 }
@@ -152,10 +162,10 @@ const convertToMp3Blob = async (sourceBlob: Blob): Promise<Blob> => {
         } else {
             const left = convertFloat32ToInt16(decodedAudio.getChannelData(0));
             const right = convertFloat32ToInt16(decodedAudio.getChannelData(1));
-            for (let i = 0; i < left.length; i += sampleBlockSize) {
+            for (let i = 0; i < left.length; i += MP3_SAMPLE_BLOCK_SIZE) {
                 const mp3Buffer = mp3Encoder.encodeBuffer(
-                    left.subarray(i, i + sampleBlockSize),
-                    right.subarray(i, i + sampleBlockSize),
+                    left.subarray(i, i + MP3_SAMPLE_BLOCK_SIZE),
+                    right.subarray(i, i + MP3_SAMPLE_BLOCK_SIZE),
                 );
                 if (mp3Buffer.length > 0) {
                     mp3Data.push(new Int8Array(mp3Buffer));
