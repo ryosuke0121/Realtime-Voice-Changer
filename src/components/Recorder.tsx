@@ -1,5 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { Mic, MicOff, Download } from 'lucide-react';
+import { Mp3Encoder } from 'lamejs';
 
 
 interface RecorderProps {
@@ -17,6 +18,7 @@ export const Recorder: React.FC<RecorderProps> = ({
 }) => {
     const [isRecordingToFile, setIsRecordingToFile] = useState(false);
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+    const recordingMimeTypeRef = useRef('');
     const audioChunksRef = useRef<Blob[]>([]);
 
     const startRecordingSession = async () => {
@@ -31,11 +33,11 @@ export const Recorder: React.FC<RecorderProps> = ({
     React.useEffect(() => {
         if (isPendingRecord && isRecording && destinationNode) {
             audioChunksRef.current = [];
-            const mediaRecorder = new MediaRecorder(destinationNode.stream, {
-                mimeType: MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-                    ? 'audio/webm;codecs=opus'
-                    : 'audio/webm'
-            });
+            const supportedMimeType = getSupportedRecordingMimeType((mimeType) => MediaRecorder.isTypeSupported(mimeType));
+            const mediaRecorder = supportedMimeType
+                ? new MediaRecorder(destinationNode.stream, { mimeType: supportedMimeType })
+                : new MediaRecorder(destinationNode.stream);
+            recordingMimeTypeRef.current = mediaRecorder.mimeType || supportedMimeType || '';
 
             mediaRecorder.ondataavailable = (e) => {
                 if (e.data.size > 0) audioChunksRef.current.push(e.data);
@@ -51,11 +53,11 @@ export const Recorder: React.FC<RecorderProps> = ({
 
     const stopRecordingSession = () => {
         if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-            mediaRecorderRef.current.stop();
             mediaRecorderRef.current.onstop = () => {
-                downloadRecording();
+                void downloadRecording();
                 cleanup();
             };
+            mediaRecorderRef.current.stop();
         } else {
             cleanup();
         }
@@ -66,10 +68,11 @@ export const Recorder: React.FC<RecorderProps> = ({
         onStopRecording();
     };
 
-    const downloadRecording = () => {
+    const downloadRecording = async () => {
         if (audioChunksRef.current.length === 0) return;
-        const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        const url = URL.createObjectURL(blob);
+        const sourceBlob = new Blob(audioChunksRef.current, { type: recordingMimeTypeRef.current || 'audio/webm' });
+        const mp3Blob = await convertToMp3Blob(sourceBlob);
+        const url = URL.createObjectURL(mp3Blob);
         const a = document.createElement('a');
         a.href = url;
         a.download = `voice-recording-${Date.now()}.mp3`;
@@ -114,4 +117,68 @@ export const Recorder: React.FC<RecorderProps> = ({
             )}
         </div>
     );
+};
+
+const RECORDING_MIME_TYPE_CANDIDATES = [
+    'audio/webm;codecs=opus',
+    'audio/webm',
+    'audio/mp4',
+    'audio/ogg;codecs=opus',
+    'audio/ogg',
+];
+
+export const getSupportedRecordingMimeType = (isTypeSupported: (mimeType: string) => boolean): string => {
+    return RECORDING_MIME_TYPE_CANDIDATES.find((mimeType) => isTypeSupported(mimeType)) ?? '';
+};
+
+const convertToMp3Blob = async (sourceBlob: Blob): Promise<Blob> => {
+    const audioContext = new AudioContext();
+    try {
+        const arrayBuffer = await sourceBlob.arrayBuffer();
+        const decodedAudio = await audioContext.decodeAudioData(arrayBuffer);
+        const channels = Math.min(decodedAudio.numberOfChannels, 2);
+        const mp3Encoder = new Mp3Encoder(channels, decodedAudio.sampleRate, 128);
+        const sampleBlockSize = 1152;
+        const mp3Data: Int8Array[] = [];
+
+        if (channels === 1) {
+            const mono = convertFloat32ToInt16(decodedAudio.getChannelData(0));
+            for (let i = 0; i < mono.length; i += sampleBlockSize) {
+                const mp3Buffer = mp3Encoder.encodeBuffer(mono.subarray(i, i + sampleBlockSize));
+                if (mp3Buffer.length > 0) {
+                    mp3Data.push(new Int8Array(mp3Buffer));
+                }
+            }
+        } else {
+            const left = convertFloat32ToInt16(decodedAudio.getChannelData(0));
+            const right = convertFloat32ToInt16(decodedAudio.getChannelData(1));
+            for (let i = 0; i < left.length; i += sampleBlockSize) {
+                const mp3Buffer = mp3Encoder.encodeBuffer(
+                    left.subarray(i, i + sampleBlockSize),
+                    right.subarray(i, i + sampleBlockSize),
+                );
+                if (mp3Buffer.length > 0) {
+                    mp3Data.push(new Int8Array(mp3Buffer));
+                }
+            }
+        }
+
+        const endBuffer = mp3Encoder.flush();
+        if (endBuffer.length > 0) {
+            mp3Data.push(new Int8Array(endBuffer));
+        }
+
+        return new Blob(mp3Data, { type: 'audio/mpeg' });
+    } finally {
+        await audioContext.close();
+    }
+};
+
+const convertFloat32ToInt16 = (input: Float32Array): Int16Array => {
+    const output = new Int16Array(input.length);
+    for (let i = 0; i < input.length; i += 1) {
+        const sample = Math.max(-1, Math.min(1, input[i]));
+        output[i] = sample < 0 ? sample * 0x8000 : sample * 0x7fff;
+    }
+    return output;
 };
