@@ -69,10 +69,10 @@ export const useAudioProcessor = (settings: AppState) => {
             }
         };
 
-        const cleanupPromise = setupAudio();
+        const setupPromise = setupAudio();
 
         return () => {
-            cleanupPromise.then(cleanup => cleanup?.());
+            setupPromise.then(cleanup => cleanup?.());
             micRef.current?.dispose();
             noiseGateRef.current?.dispose();
             compressorRef.current?.dispose();

@@ -197,7 +197,7 @@ const downloadRecording = async (sessionId: string, mimeType: string): Promise<v
     if (chunks.length === 0) return;
 
     const sourceBlob = new Blob(chunks, { type: mimeType || 'audio/webm' });
-    const mp3Blob = await convertToMp3BlobViaWorker(sourceBlob);
+    const mp3Blob = await convertToMp3Blob(sourceBlob);
     const url = URL.createObjectURL(mp3Blob);
     const a = document.createElement('a');
     a.href = url;
@@ -209,7 +209,7 @@ const downloadRecording = async (sessionId: string, mimeType: string): Promise<v
 };
 
 // Fix 4: MP3 encoding offloaded to a Web Worker to prevent UI freeze
-const convertToMp3BlobViaWorker = async (sourceBlob: Blob): Promise<Blob> => {
+const convertToMp3Blob = async (sourceBlob: Blob): Promise<Blob> => {
     const audioContext = new AudioContext();
     try {
         const arrayBuffer = await sourceBlob.arrayBuffer();
@@ -229,7 +229,8 @@ const convertToMp3BlobViaWorker = async (sourceBlob: Blob): Promise<Blob> => {
                 worker.terminate();
                 resolve(blob);
             };
-            worker.onerror = (_e: ErrorEvent) => {
+            worker.onerror = (e: ErrorEvent) => {
+                console.error('MP3 encoding worker error:', e);
                 worker.terminate();
                 reject(new Error('MP3 encoding failed in worker'));
             };
