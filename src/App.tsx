@@ -28,17 +28,31 @@ function App() {
         eqHigh: 0,
     });
 
-    const { start, stop, destinationRef, error } = useAudioProcessor(settings);
+    const { start, stop, destinationRef, error, audioContextState, micLost, resumeAudioContext } = useAudioProcessor(settings);
 
     useEffect(() => {
+        const PRESET_CACHE_KEY = 'cachedPresets';
         const fetchPresets = async () => {
             try {
                 const res = await fetch('/api/presets');
                 if (!res.ok) throw new Error();
                 const data = await res.json();
-                setPresets(data.presets || DEFAULT_PRESETS);
+                const loaded: Preset[] = data.presets || DEFAULT_PRESETS;
+                setPresets(loaded);
+                try {
+                    localStorage.setItem(PRESET_CACHE_KEY, JSON.stringify(loaded));
+                } catch { }
             } catch {
-                setPresets(DEFAULT_PRESETS);
+                try {
+                    const cached = localStorage.getItem(PRESET_CACHE_KEY);
+                    if (cached) {
+                        setPresets(JSON.parse(cached) as Preset[]);
+                    } else {
+                        setPresets(DEFAULT_PRESETS);
+                    }
+                } catch {
+                    setPresets(DEFAULT_PRESETS);
+                }
             } finally {
                 setIsLoadingPresets(false);
             }
@@ -109,6 +123,24 @@ function App() {
                     />
 
                     {error && <div className="text-red-500 mb-4">{error}</div>}
+
+                    {audioContextState === 'suspended' && (
+                        <div className="mb-4 p-3 rounded-lg bg-yellow-500/10 border border-yellow-500 text-yellow-400 flex items-center justify-between">
+                            <span>オーディオが一時停止されています。クリックして再開してください。</span>
+                            <button
+                                onClick={resumeAudioContext}
+                                className="ml-4 px-3 py-1 rounded bg-yellow-500 text-black font-semibold text-sm"
+                            >
+                                再開
+                            </button>
+                        </div>
+                    )}
+
+                    {micLost && (
+                        <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500 text-red-400">
+                            マイクの接続が切れました。録音を停止し、マイクを再接続してください。
+                        </div>
+                    )}
 
                     <PresetSelector
                         presets={presets}

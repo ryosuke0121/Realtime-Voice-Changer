@@ -6,6 +6,8 @@ import { AppState } from '../types';
 export const useAudioProcessor = (settings: AppState) => {
     const [isReady, setIsReady] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [audioContextState, setAudioContextState] = useState<AudioContextState>('running');
+    const [micLost, setMicLost] = useState(false);
 
     const micRef = useRef<Tone.UserMedia | null>(null);
     const pitchShiftRef = useRef<Tone.PitchShift | null>(null);
@@ -35,6 +37,11 @@ export const useAudioProcessor = (settings: AppState) => {
                 const ctx = Tone.context.rawContext as AudioContext;
                 destinationRef.current = ctx.createMediaStreamDestination();
 
+                const handleStateChange = () => {
+                    setAudioContextState((Tone.context.rawContext as AudioContext).state);
+                };
+                ctx.addEventListener('statechange', handleStateChange);
+
                 if (
                     micRef.current && noiseGateRef.current && compressorRef.current &&
                     eq3Ref.current && pitchShiftRef.current && reverbRef.current &&
@@ -53,14 +60,19 @@ export const useAudioProcessor = (settings: AppState) => {
                     gainRef.current.connect(destinationRef.current as any);
                 }
                 setIsReady(true);
+
+                return () => {
+                    ctx.removeEventListener('statechange', handleStateChange);
+                };
             } catch (e) {
                 setError(e instanceof Error ? e.message : 'Audio setup failed');
             }
         };
 
-        setupAudio();
+        const setupPromise = setupAudio();
 
         return () => {
+            setupPromise.then(cleanup => cleanup?.());
             micRef.current?.dispose();
             noiseGateRef.current?.dispose();
             compressorRef.current?.dispose();
@@ -109,14 +121,36 @@ export const useAudioProcessor = (settings: AppState) => {
         try {
             await Tone.start();
             await micRef.current?.open();
+            setMicLost(false);
+
+            // Monitor audio input devices; if the active mic is unplugged, surface a warning
+            const handleDeviceChange = async () => {
+                try {
+                    const devices = await navigator.mediaDevices.enumerateDevices();
+                    const hasMic = devices.some(d => d.kind === 'audioinput');
+                    if (!hasMic) setMicLost(true);
+                } catch { }
+            };
+            navigator.mediaDevices.addEventListener('devicechange', handleDeviceChange);
         } catch (e) {
             throw new Error('Microphone access denied');
         }
     }, []);
 
-    const stop = useCallback(() => {
-        micRef.current?.close();
+    const resumeAudioContext = useCallback(async () => {
+        try {
+            const ctx = Tone.context.rawContext as AudioContext;
+            if (ctx.state === 'suspended') {
+                await ctx.resume();
+                setAudioContextState(ctx.state);
+            }
+        } catch { }
     }, []);
 
-    return { isReady, error, start, stop, destinationRef: destinationRef.current };
+    const stop = useCallback(() => {
+        micRef.current?.close();
+        setMicLost(false);
+    }, []);
+
+    return { isReady, error, audioContextState, micLost, resumeAudioContext, start, stop, destinationRef: destinationRef.current };
 };
