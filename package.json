@@ -15,7 +15,7 @@
   "dependencies": {
     "@hono/node-server": "^1.19.15",
     "clsx": "^2.1.1",
-    "hono": "^4.13.13",
+    "hono": "^4.13.18",
     "lamejs": "^1.2.1",
     "lucide-react": "^0.562.0",
     "react": "^18.2.0",
